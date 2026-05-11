@@ -1,0 +1,613 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SSGDFS 搜索导出 - 增强版</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: "Microsoft YaHei", sans-serif; max-width: 1400px; margin: 24px auto; padding: 0 16px; color: #111; background: #f8f9fa; }
+    h1 { margin-bottom: 16px; color: #212529; }
+    h2 { font-size: 18px; margin: 16px 0 10px; color: #212529; border-bottom: 2px solid #0b63ce; padding-bottom: 8px; }
+    .card { background: #fff; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    form { display: flex; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; align-items: center; }
+    input[type="text"], input[type="number"], select, textarea { padding: 10px; font-size: 15px; border: 1px solid #ddd; border-radius: 6px; }
+    input[type="text"] { flex: 1; min-width: 200px; }
+    button, .btn { padding: 10px 16px; border: none; background: #111; color: #fff; cursor: pointer; text-decoration: none; display: inline-block; border-radius: 6px; transition: all 0.2s; }
+    button:hover, .btn:hover { opacity: 0.9; }
+    button[disabled] { opacity: 0.6; cursor: not-allowed; }
+    .btn-primary { background: #0b63ce; }
+    .btn-success { background: #28a745; }
+    .btn-warning { background: #ffc107; color: #111; }
+    .btn-danger { background: #dc3545; }
+    .btn-light { background: #6c757d; }
+    .error { color: #b00020; margin: 10px 0; padding: 10px; background: #ffebee; border-radius: 4px; }
+    .ok { color: #1b5e20; margin: 10px 0; padding: 10px; background: #e8f5e9; border-radius: 4px; }
+    .empty { margin: 18px 0; padding: 14px; background: #fafafa; border: 1px dashed #ccc; color: #666; border-radius: 6px; text-align: center; }
+    .hint { color: #666; font-size: 13px; margin-top: 8px; }
+    .toolbar { margin: 12px 0; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .toolbar select, .toolbar input { padding: 6px 8px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: middle; }
+    th { background: #f5f5f5; position: sticky; top: 0; }
+    tr:hover { background: #f8f9fa; }
+    .pagination { margin-top: 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .pagination button { padding: 6px 10px; }
+    .history-wrap { margin-top: 10px; }
+    .small { font-size: 12px; color: #666; }
+    .loading-mask { display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 9999; align-items: center; justify-content: center; }
+    .loading-box { background: #fff; padding: 24px 32px; border-radius: 12px; min-width: 300px; text-align: center; box-shadow: 0 8px 28px rgba(0,0,0,0.3); }
+    .spinner { width: 40px; height: 40px; border: 4px solid #ddd; border-top-color: #0b63ce; border-radius: 50%; margin: 0 auto 16px; animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .highlight { background: #fff3cd; color: #856404; padding: 1px 3px; border-radius: 2px; font-weight: bold; }
+    .task-pending { border-left: 4px solid #ffc107; }
+    .task-running { border-left: 4px solid #0b63ce; }
+    .task-completed { border-left: 4px solid #28a745; }
+    .task-failed { border-left: 4px solid #dc3545; }
+    .progress-bar { width: 100%; height: 20px; background: #e9ecef; border-radius: 10px; overflow: hidden; margin: 8px 0; }
+    .progress-fill { height: 100%; background: #0b63ce; transition: width 0.3s; }
+    .task-card { padding: 12px; margin: 8px 0; background: #fff; border-radius: 6px; }
+    .file-upload-area { border: 2px dashed #0b63ce; border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; background: #f8f9ff; }
+    .file-upload-area:hover { background: #eef4ff; }
+    .tab-buttons { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 2px solid #dee2e6; }
+    .tab-btn { background: transparent; color: #666; border: none; border-bottom: 2px solid transparent; margin-bottom: -2px; padding: 10px 18px; }
+    .tab-btn.active { color: #0b63ce; border-bottom-color: #0b63ce; font-weight: bold; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .modal { display: none; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; }
+    .modal-box { background: #fff; padding: 24px; border-radius: 12px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; }
+    .modal-actions { margin-top: 16px; display: flex; gap: 8px; justify-content: flex-end; }
+    .checkbox-cell { width: 40px; text-align: center; }
+  </style>
+</head>
+<body>
+  <h1>🛒 SSGDFS 商品数据抓取工具 (增强版)</h1>
+
+  <div class="card">
+    <div class="tab-buttons">
+      <button type="button" class="tab-btn active" data-tab="single">单个关键词</button>
+      <button type="button" class="tab-btn" data-tab="batch">批量导入</button>
+    </div>
+
+    <div id="tab-single" class="tab-content active">
+      <form id="search-form" method="post" action="{{ url_for('generate') }}">
+        <input type="text" name="keyword" id="keyword-input" value="{{ keyword or '' }}" placeholder="输入搜索关键词，例如：伊索" required />
+        <button id="submit-btn" type="submit" class="btn-primary">生成数据</button>
+      </form>
+      <div class="hint">点击生成后自动抓取多页数据，支持导出 Excel、CSV、JSON。</div>
+    </div>
+
+    <div id="tab-batch" class="tab-content">
+      <div class="file-upload-area" id="drop-zone">
+        <p style="font-size: 18px; color: #0b63ce; margin: 0;">📁 点击或拖拽上传 TXT/CSV 文件</p>
+        <p class="hint" style="margin-top: 8px;">每行一个关键词，批量提交后将合并所有搜索结果</p>
+        <input type="file" id="keyword-file-input" accept=".txt,.csv" style="display: none;" />
+      </div>
+      <textarea id="batch-keywords-area" placeholder="关键词预览区，也可以直接在此编辑，每行一个" style="width: 100%; height: 120px; margin-top: 12px;"></textarea>
+      <div style="margin-top: 10px;">
+        <button type="button" id="start-batch-task" class="btn-primary">🚀 开始批量抓取</button>
+      </div>
+    </div>
+  </div>
+
+  {% if error %}
+    <div class="error">{{ error }}</div>
+  {% endif %}
+  {% if message %}
+    <div class="ok">{{ message }}</div>
+  {% endif %}
+
+  {% if no_data %}
+    <div class="empty">未检索到数据，请更换关键词后重试。</div>
+  {% endif %}
+
+  {% if total %}
+    <div class="card">
+      <div class="ok">✅ 抓取完成：{{ total }} 条</div>
+      <div class="small" style="margin: 8px 0;">
+        数据来源：{% if cache_hit %}缓存命中{% else %}实时抓取{% endif %}，耗时 {{ duration_text or '00:00:00' }}
+      </div>
+      <div class="toolbar">
+        <a class="btn btn-primary" href="{{ download_url }}">📊 导出 Excel</a>
+        <a class="btn btn-success" href="{{ download_url_csv }}">📄 导出 CSV</a>
+        <a class="btn btn-warning" href="{{ download_url_json }}">📋 导出 JSON</a>
+        <button type="button" id="open-merge-modal-btn" class="btn-light">🔗 合并选中商品</button>
+      </div>
+
+      <h2>🔍 数据筛选与排序</h2>
+      <div class="toolbar">
+        <label>价格区间:</label>
+        <input type="number" id="price-min" placeholder="最低" style="width: 100px;" />
+        <span>-</span>
+        <input type="number" id="price-max" placeholder="最高" style="width: 100px;" />
+        <label>品牌筛选:</label>
+        <select id="brand-filter">
+          <option value="">全部品牌</option>
+        </select>
+        <label>关键词高亮:</label>
+        <input type="checkbox" id="highlight-toggle" checked />
+        <label>排序:</label>
+        <select id="sort-select">
+          <option value="">默认排序</option>
+          <option value="price-asc">价格从低到高</option>
+          <option value="price-desc">价格从高到低</option>
+          <option value="brand-asc">品牌 A-Z</option>
+        </select>
+      </div>
+
+      <div class="toolbar">
+        <label for="page-size">每页条数：</label>
+        <select id="page-size">
+          <option value="10">10</option>
+          <option value="20" selected>20</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+        </select>
+        <span id="page-info"></span>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th class="checkbox-cell"><input type="checkbox" id="select-all-rows" /></th>
+            <th>关键词</th>
+            <th>品牌</th>
+            <th>商品名</th>
+            <th>销售价</th>
+            <th>RefNO</th>
+            <th>商品编码</th>
+            <th>价格追踪</th>
+          </tr>
+        </thead>
+        <tbody id="result-body"></tbody>
+      </table>
+
+      <div class="pagination">
+        <button type="button" id="first-page">首页</button>
+        <button type="button" id="prev-page">上一页</button>
+        <button type="button" id="next-page">下一页</button>
+        <button type="button" id="last-page">末页</button>
+      </div>
+    </div>
+  {% else %}
+    <div class="card">
+      <div class="empty">还没有结果。请输入关键词后点击"生成"或批量上传关键词文件。</div>
+    </div>
+  {% endif %}
+
+  <div class="card">
+    <h2>📋 任务管理面板</h2>
+    <div id="tasks-container"></div>
+  </div>
+
+  <div class="card">
+    <div class="history-wrap">
+      <h2>📜 生成记录</h2>
+      <div class="toolbar">
+        <form method="post" action="{{ url_for('clear_cache') }}">
+          <button type="submit" class="btn-light">清空缓存</button>
+        </form>
+        <form method="post" action="{{ url_for('clear_history') }}">
+          <button type="submit" class="btn-light">清空生成记录</button>
+        </form>
+        <form method="post" action="{{ url_for('clear_history_and_files') }}">
+          <button type="submit" class="btn-light">清空记录并删除文件</button>
+        </form>
+      </div>
+      {% if history and history|length > 0 %}
+        <table>
+          <thead>
+            <tr>
+              <th>时间</th>
+              <th>关键词</th>
+              <th>条数</th>
+              <th>来源</th>
+              <th>耗时</th>
+              <th>文件名</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for h in history %}
+            <tr>
+              <td>{{ h['time'] }}</td>
+              <td>{{ h['keyword'] }}</td>
+              <td>{{ h['total'] }}</td>
+              <td>{{ '缓存' if h['source'] == 'cache' else '抓取' }}</td>
+              <td>{{ h['duration_text'] or '00:00:00' }}</td>
+              <td>
+                {% if h['file_exists'] %}
+                  <a href="{{ h['download_url'] }}">{{ h['file_name'] }}</a>
+                {% else %}
+                  {{ h['file_name'] }} <span class="small">(不存在)</span>
+                {% endif %}
+              </td>
+              <td>
+                <form method="post" action="{{ url_for('delete_history_item') }}" onsubmit="return confirm('确认删除这条记录吗？');">
+                  <input type="hidden" name="keyword" value="{{ h['keyword'] }}">
+                  <input type="hidden" name="record_time" value="{{ h['time'] }}">
+                  <input type="hidden" name="file_name" value="{{ h['file_name'] }}">
+                  <button type="submit" class="btn-danger" style="padding: 6px 10px; font-size: 12px;">删除</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <div class="empty">暂无生成记录。</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div id="loading-mask" class="loading-mask">
+    <div class="loading-box">
+      <div class="spinner"></div>
+      <div id="loading-text">正在抓取，请稍候...</div>
+    </div>
+  </div>
+
+  <div id="merge-modal" class="modal">
+    <div class="modal-box">
+      <h3>🔗 合并选中商品</h3>
+      <div class="hint" id="merge-count-info">已选择 0 个商品</div>
+      <div style="margin-top: 12px;">
+        <label>合并后的名称:</label>
+        <input type="text" id="merged-name-input" placeholder="例如：品牌组合套装" style="width: 100%; margin-top: 6px;" />
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="close-merge-modal" class="btn-light">取消</button>
+        <button type="button" id="confirm-merge-btn" class="btn-primary">确认合并</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="price-history-modal" class="modal">
+    <div class="modal-box" style="max-width: 700px;">
+      <h3>📈 价格历史追踪</h3>
+      <div id="price-chart-container" style="margin-top: 12px; text-align: center;">
+        <img id="price-chart-img" style="max-width: 100%;" src="" alt="价格趋势图" />
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="close-price-modal" class="btn-light">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  {% if total %}
+  <script>
+    const rowsData = {{ rows|tojson|safe }};
+    const searchKeyword = {{ keyword|tojson|safe }};
+    let filteredRows = [...rowsData];
+    let allBrands = [...new Set(rowsData.map(r => r['品牌']).filter(b => b))];
+    
+    const body = document.getElementById('result-body');
+    const pageSizeSelect = document.getElementById('page-size');
+    const pageInfo = document.getElementById('page-info');
+    const firstBtn = document.getElementById('first-page');
+    const prevBtn = document.getElementById('prev-page');
+    const nextBtn = document.getElementById('next-page');
+    const lastBtn = document.getElementById('last-page');
+    
+    const brandFilterSelect = document.getElementById('brand-filter');
+    const priceMinInput = document.getElementById('price-min');
+    const priceMaxInput = document.getElementById('price-max');
+    const sortSelect = document.getElementById('sort-select');
+    const highlightToggle = document.getElementById('highlight-toggle');
+    
+    let currentPage = 1;
+    let pageSize = Number(pageSizeSelect.value);
+    
+    allBrands.forEach(b => {
+      const opt = document.createElement('option');
+      opt.value = b;
+      opt.textContent = b;
+      brandFilterSelect.appendChild(opt);
+    });
+
+    function parsePriceStr(p) {
+      if (!p) return 0;
+      const m = p.match(/[\d,.]+/);
+      return m ? parseFloat(m[0].replace(',', '')) : 0;
+    }
+
+    function highlightText(text, kw) {
+      if (!highlightToggle.checked || !kw) return escapeHtml(text);
+      if (!text) return '';
+      const re = new RegExp(`(${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+      return escapeHtml(text).replace(re, '<span class="highlight">$1</span>');
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    function applyFiltersAndSort() {
+      filteredRows = [...rowsData];
+      
+      if (brandFilterSelect.value) {
+        filteredRows = filteredRows.filter(r => r['品牌'] === brandFilterSelect.value);
+      }
+      
+      const pMin = parseFloat(priceMinInput.value);
+      const pMax = parseFloat(priceMaxInput.value);
+      if (!isNaN(pMin)) {
+        filteredRows = filteredRows.filter(r => parsePriceStr(r['销售价']) >= pMin);
+      }
+      if (!isNaN(pMax)) {
+        filteredRows = filteredRows.filter(r => parsePriceStr(r['销售价']) <= pMax);
+      }
+      
+      if (sortSelect.value === 'price-asc') {
+        filteredRows.sort((a, b) => parsePriceStr(a['销售价']) - parsePriceStr(b['销售价']));
+      } else if (sortSelect.value === 'price-desc') {
+        filteredRows.sort((a, b) => parsePriceStr(b['销售价']) - parsePriceStr(a['销售价']));
+      } else if (sortSelect.value === 'brand-asc') {
+        filteredRows.sort((a, b) => (a['品牌'] || '').localeCompare(b['品牌'] || ''));
+      }
+      
+      currentPage = 1;
+      renderTable();
+    }
+
+    function totalPages() {
+      return Math.max(1, Math.ceil(filteredRows.length / pageSize));
+    }
+
+    function renderTable() {
+      const pages = totalPages();
+      if (currentPage > pages) currentPage = pages;
+      const start = (currentPage - 1) * pageSize;
+      const end = Math.min(start + pageSize, filteredRows.length);
+      const slice = filteredRows.slice(start, end);
+
+      body.innerHTML = slice.map((r, idx) => `
+        <tr>
+          <td class="checkbox-cell">
+            <input type="checkbox" class="row-checkbox" data-index="${rowsData.indexOf(r)}" />
+          </td>
+          <td>${highlightText(r['关键词'], searchKeyword)}</td>
+          <td>${highlightText(r['品牌'], searchKeyword)}</td>
+          <td>${highlightText(r['商品名'], searchKeyword)}</td>
+          <td>${escapeHtml(r['销售价'])}</td>
+          <td>${escapeHtml(r['RefNO'])}</td>
+          <td>${escapeHtml(r['商品编码'])}</td>
+          <td>
+            <button class="btn-light" style="padding: 4px 8px; font-size:12px;" 
+              onclick="showPriceHistoryModal('${escapeHtml(r['商品编码'])}', '${escapeHtml(r['商品名'])}')">
+              📈 追踪
+            </button>
+          </td>
+        </tr>
+      `).join('');
+
+      pageInfo.textContent = `第 ${currentPage} / ${pages} 页，显示 ${filteredRows.length} / ${rowsData.length} 条`;
+      firstBtn.disabled = currentPage === 1;
+      prevBtn.disabled = currentPage === 1;
+      nextBtn.disabled = currentPage === pages;
+      lastBtn.disabled = currentPage === pages;
+      
+      updateSelectAllState();
+    }
+
+    function updateSelectAllState() {
+      const checkboxes = document.querySelectorAll('.row-checkbox');
+      const selectAll = document.getElementById('select-all-rows');
+      const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+      selectAll.checked = allChecked;
+      updateMergeCount();
+    }
+
+    function updateMergeCount() {
+      const selected = document.querySelectorAll('.row-checkbox:checked');
+      document.getElementById('merge-count-info').textContent = `已选择 ${selected.length} 个商品`;
+    }
+
+    pageSizeSelect.addEventListener('change', () => {
+      pageSize = Number(pageSizeSelect.value);
+      currentPage = 1;
+      renderTable();
+    });
+
+    [brandFilterSelect, priceMinInput, priceMaxInput, sortSelect].forEach(el => {
+      el.addEventListener('change', applyFiltersAndSort);
+    });
+    highlightToggle.addEventListener('change', renderTable);
+
+    firstBtn.addEventListener('click', () => { currentPage = 1; renderTable(); });
+    prevBtn.addEventListener('click', () => { currentPage = Math.max(1, currentPage - 1); renderTable(); });
+    nextBtn.addEventListener('click', () => { currentPage = Math.min(totalPages(), currentPage + 1); renderTable(); });
+    lastBtn.addEventListener('click', () => { currentPage = totalPages(); renderTable(); });
+
+    document.getElementById('select-all-rows').addEventListener('change', function() {
+      document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = this.checked);
+      updateMergeCount();
+    });
+    document.addEventListener('change', (e) => {
+      if (e.target.classList.contains('row-checkbox')) updateMergeCount();
+    });
+
+    renderTable();
+  </script>
+  {% endif %}
+
+  <script>
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+      });
+    });
+
+    const fileInput = document.getElementById('keyword-file-input');
+    const dropZone = document.getElementById('drop-zone');
+    const batchArea = document.getElementById('batch-keywords-area');
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.background = '#eef4ff'; });
+    dropZone.addEventListener('dragleave', () => { dropZone.style.background = '#f8f9ff'; });
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.style.background = '#f8f9ff';
+      if (e.dataTransfer.files.length) handleKeywordFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener('change', (e) => { if (e.target.files.length) handleKeywordFile(e.target.files[0]); });
+
+    function handleKeywordFile(file) {
+      const formData = new FormData();
+      formData.append('file', file);
+      const loadingMask = document.getElementById('loading-mask');
+      document.getElementById('loading-text').textContent = '正在解析关键词文件...';
+      loadingMask.style.display = 'flex';
+      
+      fetch('/upload-keywords', { method: 'POST', body: formData })
+        .then(r => r.json())
+        .then(data => {
+          if (data.error) {
+            alert(data.error);
+          } else {
+            batchArea.value = data.keywords.join('\n');
+          }
+          loadingMask.style.display = 'none';
+        })
+        .catch(err => { alert('解析失败'); loadingMask.style.display = 'none'; });
+    }
+
+    document.getElementById('start-batch-task').addEventListener('click', () => {
+      const keywords = batchArea.value.split('\n').map(k => k.trim()).filter(k => k);
+      if (keywords.length === 0) {
+        alert('请先输入或上传关键词');
+        return;
+      }
+      if (!confirm(`将开始批量抓取 ${keywords.length} 个关键词，是否继续？`)) return;
+      
+      document.getElementById('loading-text').textContent = '正在启动批量任务...';
+      document.getElementById('loading-mask').style.display = 'flex';
+      
+      fetch('/create-task', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keywords })
+      })
+        .then(r => r.json())
+        .then(data => {
+          document.getElementById('loading-mask').style.display = 'none';
+          if (data.error) alert(data.error);
+          else pollTasks();
+        });
+    });
+
+    function pollTasks() {
+      fetch('/api/tasks')
+        .then(r => r.json())
+        .then(tasks => {
+          const container = document.getElementById('tasks-container');
+          if (tasks.length === 0) {
+            container.innerHTML = '<div class="empty">暂无任务</div>';
+          } else {
+            container.innerHTML = tasks.reverse().map(t => {
+              let statusClass = 'task-' + t.status;
+              let statusText = { pending: '排队中', running: '运行中', completed: '已完成', failed: '失败', canceled: '已取消' }[t.status] || t.status;
+              return `
+                <div class="task-card ${statusClass}">
+                  <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                      <strong>任务 #${t.id.slice(-8)}</strong>
+                      <span style="margin-left: 10px; font-size:13px; padding:2px 8px; background: #e9ecef; border-radius:4px;">${statusText}</span>
+                    </div>
+                    <div class="small">创建于 ${t.created_at}</div>
+                  </div>
+                  ${t.status === 'running' ? `
+                    <div class="progress-bar">
+                      <div class="progress-fill" style="width: ${t.progress}%"></div>
+                    </div>
+                    <div class="small">关键词: ${t.current_keyword} (${t.progress}%)</div>
+                  ` : ''}
+                  ${t.status === 'completed' ? `
+                    <div style="margin-top: 8px;">共 ${t.result_count} 条结果</div>
+                    <div class="toolbar" style="margin-top: 6px;">
+                      <a href="/download/${t.files.excel || ''}" class="btn-primary" style="padding: 6px 10px; font-size:12px;">Excel</a>
+                      <a href="/download/${t.files.csv || ''}" class="btn-success" style="padding: 6px 10px; font-size:12px;">CSV</a>
+                      <a href="/download/${t.files.json || ''}" class="btn-warning" style="padding: 6px 10px; font-size:12px;">JSON</a>
+                    </div>
+                  ` : ''}
+                  ${t.status === 'running' ? `
+                    <button type="button" class="btn-danger" style="padding: 6px 10px; font-size:12px; margin-top: 8px;" onclick="cancelTask('${t.id}')">取消任务</button>
+                  ` : ''}
+                  ${t.status === 'failed' && t.error ? `<div class="error small" style="margin-top: 6px;">错误: ${t.error}</div>` : ''}
+                </div>
+              `;
+            }).join('');
+          }
+        });
+    }
+
+    function cancelTask(taskId) {
+      if (!confirm('确定要取消这个任务吗？')) return;
+      fetch(`/api/tasks/${taskId}/cancel`, { method: 'POST' }).then(() => pollTasks());
+    }
+
+    setInterval(pollTasks, 2000);
+    pollTasks();
+
+    const mergeModal = document.getElementById('merge-modal');
+    document.getElementById('open-merge-modal-btn').addEventListener('click', () => {
+      const selected = document.querySelectorAll('.row-checkbox:checked');
+      if (selected.length < 2) { alert('请至少选中2个商品进行合并'); return; }
+      mergeModal.style.display = 'flex';
+    });
+    document.getElementById('close-merge-modal').addEventListener('click', () => mergeModal.style.display = 'none');
+    document.getElementById('confirm-merge-btn').addEventListener('click', () => {
+      const selectedIndices = Array.from(document.querySelectorAll('.row-checkbox:checked')).map(cb => parseInt(cb.dataset.index));
+      const items = selectedIndices.map(i => rowsData[i]);
+      const mergedName = document.getElementById('merged-name-input').value || '合并商品';
+      
+      fetch('/api/merge-items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items, merged_name: mergedName })
+      }).then(r => r.json()).then(d => {
+        if (d.success) alert('合并成功！');
+        else alert(d.error || '合并失败');
+        mergeModal.style.display = 'none';
+      });
+    });
+
+    const priceModal = document.getElementById('price-history-modal');
+    const chartImg = document.getElementById('price-chart-img');
+    window.showPriceHistoryModal = function(productCode, productName) {
+      const now = Date.now();
+      chartImg.src = `/api/price-chart?product_code=${encodeURIComponent(productCode)}&product_name=${encodeURIComponent(productName)}&t=${now}`;
+      priceModal.style.display = 'flex';
+      
+      fetch('/api/price-history/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product_code: productCode, product_name: productName, price: '' })
+      }).catch(() => {});
+    };
+    document.getElementById('close-price-modal').addEventListener('click', () => priceModal.style.display = 'none');
+
+    const searchForm = document.getElementById('search-form');
+    const submitBtn = document.getElementById('submit-btn');
+    const loadingMask = document.getElementById('loading-mask');
+    if (searchForm) {
+      searchForm.addEventListener('submit', () => {
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = '生成中...';
+        }
+        document.getElementById('loading-text').textContent = '正在抓取，请稍候...';
+        loadingMask.style.display = 'flex';
+      });
+    }
+  </script>
+</body>
+</html>
